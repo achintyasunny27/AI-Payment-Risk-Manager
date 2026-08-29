@@ -339,6 +339,9 @@ def get_all_transactions():
             "success": False,
             "message": "Could not fetch transactions"
         }), 500    
+    print("=== PAYMENT SERVER LOADED ===")
+print("FILE:", __file__)
+print("ROUTES:", app.url_map)
 if __name__ == "__main__":
 
     app.run(
