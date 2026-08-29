@@ -340,7 +340,7 @@ def get_all_transactions():
             "message": "Could not fetch transactions"
         }), 500    
     print("=== PAYMENT SERVER LOADED ===")
-app.route("/health", methods=["GET"])
+@app.route("/health", methods=["GET"])
 def health():
     return jsonify({
         "status": "ok",
