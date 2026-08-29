@@ -150,37 +150,42 @@ if st.button("💳 Create Razorpay Test Order"):
             1 if international_transaction == "Yes" else 0
         )
     }
-
-    response = requests.post(
-        "http://127.0.0.1:5000/create-order",
-        json=transaction
-    )
-
-    if response.status_code == 200:
-
-        order = response.json()
-
-        st.success("Razorpay Test Order Created!")
-
-        st.write(
-            "Order ID:",
-            order["id"]
+    try:
+        response = requests.post(
+            "https://ai-payment-risk-manager-2ggl.onrender.com/create-order",
+            json=transaction,
+            timeout=60
         )
 
-        st.info(
-            "Open Razorpay Checkout, complete the test payment, "
-            "then return here and click 'Check Payment & Analyze'."
-        )
+        st.write("Backend status:", response.status_code)
+        st.write("Backend response:", response.text)
 
-        st.link_button(
-            "💳 Open Razorpay Test Checkout",
-            "http://127.0.0.1:5000"
-        )
+        if response.status_code == 200:
+            order = response.json()
 
-    else:
+            st.success("Razorpay Test Order Created!")
 
-        st.error("Could not create Razorpay order.")
+            st.write(
+                "Order ID:",
+                order["id"]
+            )
 
+            st.info(
+                "Order created successfully. "
+                "Now we need to open Razorpay Checkout."
+            )
+
+        else:
+            st.error(
+                f"Could not create Razorpay order. "
+                f"Status: {response.status_code}"
+            )
+
+    except Exception as e:
+        st.error(f"Backend connection failed: {e}")
+    
+    
+   
 
 # --------------------------------
 # Check verified payment
@@ -189,7 +194,7 @@ if st.button("💳 Create Razorpay Test Order"):
 if st.button("🔍 Check Payment & Analyze"):
 
     response = requests.get(
-        "http://127.0.0.1:5000/payment-status"
+         "https://ai-payment-risk-manager-2ggl.onrender.com/payment-status"
     )
 
     if response.status_code != 200:
@@ -262,7 +267,7 @@ if st.button("🔍 Check Payment & Analyze"):
         # -----------------------------
 
     save_response = requests.post(
-            "http://127.0.0.1:5000/save-analysis",
+            "https://ai-payment-risk-manager-2ggl.onrender.com",
             json={
                 "payment_id": payment["payment_id"],
                 "order_id": payment["order_id"],
@@ -378,7 +383,7 @@ st.divider()
 st.header("📊 Transaction History")
 
 history_response = requests.get(
-    "http://127.0.0.1:5000/transactions"
+    "https://ai-payment-risk-manager-2ggl.onrender.com/transactions"
 )
 
 if history_response.status_code == 200:
