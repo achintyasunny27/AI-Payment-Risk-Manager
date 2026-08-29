@@ -340,8 +340,13 @@ def get_all_transactions():
             "message": "Could not fetch transactions"
         }), 500    
     print("=== PAYMENT SERVER LOADED ===")
-print("FILE:", __file__)
-print("ROUTES:", app.url_map)
+app.route("/health", methods=["GET"])
+def health():
+    return jsonify({
+        "status": "ok",
+        "message": "Payment backend is running"
+    })
+
 if __name__ == "__main__":
 
     app.run(
