@@ -152,7 +152,7 @@ if st.button("💳 Create Razorpay Test Order"):
     }
     try:
         response = requests.post(
-            "https://ai-payment-risk-manager-2ggl.onrender.com/create-order",
+            "https://ai-payment-risk-manager-production.up.railway.app/create-order",
             json=transaction,
             timeout=60
         )
@@ -194,7 +194,7 @@ if st.button("💳 Create Razorpay Test Order"):
 if st.button("🔍 Check Payment & Analyze"):
 
     response = requests.get(
-         "https://ai-payment-risk-manager-2ggl.onrender.com/payment-status"
+         "https://ai-payment-risk-manager-production.up.railway.app/payment-status"
     )
 
     if response.status_code != 200:
@@ -267,7 +267,7 @@ if st.button("🔍 Check Payment & Analyze"):
         # -----------------------------
 
     save_response = requests.post(
-            "https://ai-payment-risk-manager-2ggl.onrender.com",
+            "https://ai-payment-risk-manager-production.up.railway.app",
             json={
                 "payment_id": payment["payment_id"],
                 "order_id": payment["order_id"],
@@ -383,7 +383,7 @@ st.divider()
 st.header("📊 Transaction History")
 
 history_response = requests.get(
-    "https://ai-payment-risk-manager-2ggl.onrender.com/transactions"
+    "https://ai-payment-risk-manager-production.up.railway.app/transactions"
 )
 
 if history_response.status_code == 200:
