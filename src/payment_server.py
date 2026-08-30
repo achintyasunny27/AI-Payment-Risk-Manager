@@ -1,3 +1,4 @@
+import uuid
 import os
 import razorpay
 
@@ -178,11 +179,10 @@ def home():
 
 @app.route("/create-order", methods=["POST"])
 def create_order():
-
     global latest_transaction
     global latest_order
 
-    data = request.get_json()
+    data = request.get_json() or {}
 
     amount_rupees = float(
         data.get("transaction_amount", 100)
@@ -190,93 +190,118 @@ def create_order():
 
     latest_transaction = data
 
-    order_data = {
-        "amount": int(amount_rupees * 100),
-        "currency": "INR",
-        "receipt": "risk_manager_checkout"
-    }
+    # Try real Razorpay first
     try:
-        order = client.order.create(data=order_data)
-    except Exception as e:
-        print("RAZORPAY ERROR:", repr(e), flush=True)
-        return jsonify({
-            "error": "Razorpay order creation failed",
-            "details": str(e)
-        }), 500
-    
+        order_data = {
+            "amount": int(amount_rupees * 100),
+            "currency": "INR",
+            "receipt": f"risk_manager_{uuid.uuid4().hex[:10]}"
+        }
 
-    latest_order = order
+        print("=== CREATE ORDER CALLED ===", flush=True)
+        print("ORDER DATA:", order_data, flush=True)
 
-    return jsonify(order)
+        try:
+            order = client.order.create(
+                data=order_data
+            )
 
+            print("=== RAZORPAY ORDER CREATED ===", flush=True)
+            print("ORDER:", order, flush=True)
+
+        except Exception as error:
+            print("=== RAZORPAY ERROR ===", flush=True)
+            print("ERROR TYPE:", type(error).__name__, flush=True)
+            print("ERROR:", repr(error), flush=True)
+            raise
+
+        print("REAL RAZORPAY ORDER CREATED:", order.get("id"))
+
+        return jsonify(order)
+
+    except Exception as error:
+        # DEMO MODE — allows the risk analysis system
+        # to work even when Razorpay is unavailable.
+        print("Razorpay unavailable. Using DEMO MODE:", error)
+
+        demo_order = {
+            "id": f"demo_order_{uuid.uuid4().hex[:10]}",
+            "amount": int(amount_rupees * 100),
+            "currency": "INR",
+            "receipt": f"demo_risk_manager_{uuid.uuid4().hex[:10]}",
+            "status": "created",
+            "demo": True
+        }
+
+        latest_order = demo_order
+
+        print("DEMO ORDER CREATED:", demo_order["id"])
+
+        return jsonify(demo_order)
 
 @app.route("/verify-payment", methods=["POST"])
 def verify_payment():
-
     global latest_payment
 
-    data = request.get_json()
+    data = request.get_json() or {}
 
+    # DEMO PAYMENT
+    # If the order was created in demo mode,
+    # skip Razorpay signature verification.
+    if latest_order.get("demo") is True:
+
+        latest_payment = {
+            "payment_id": f"demo_payment_{uuid.uuid4().hex[:10]}",
+            "order_id": latest_order["id"],
+            "transaction": latest_transaction,
+            "status": "verified",
+            "demo": True
+        }
+
+        print("DEMO PAYMENT VERIFIED")
+
+        return jsonify({
+            "success": True,
+            "message": "Demo payment verified",
+            "payment_id": latest_payment["payment_id"],
+            "order_id": latest_payment["order_id"],
+            "transaction": latest_transaction,
+            "demo": True
+        })
+
+    # REAL RAZORPAY PAYMENT
     try:
 
         client.utility.verify_payment_signature({
-
-            "razorpay_order_id":
-                data["razorpay_order_id"],
-
-            "razorpay_payment_id":
-                data["razorpay_payment_id"],
-
-            "razorpay_signature":
-                data["razorpay_signature"]
-
+            "razorpay_order_id": data["razorpay_order_id"],
+            "razorpay_payment_id": data["razorpay_payment_id"],
+            "razorpay_signature": data["razorpay_signature"]
         })
 
-        # Store verified payment
         latest_payment = {
-
-            "payment_id":
-                data["razorpay_payment_id"],
-
-            "order_id":
-                data["razorpay_order_id"],
-
-            "transaction":
-                latest_transaction
+            "payment_id": data["razorpay_payment_id"],
+            "order_id": data["razorpay_order_id"],
+            "transaction": latest_transaction,
+            "status": "verified",
+            "demo": False
         }
 
         return jsonify({
-
             "success": True,
-
-            "message":
-                "Payment signature verified",
-
-            "payment_id":
-                data["razorpay_payment_id"],
-
-            "order_id":
-                data["razorpay_order_id"],
-
-            "transaction":
-                latest_transaction
-
+            "message": "Payment signature verified",
+            "payment_id": data["razorpay_payment_id"],
+            "order_id": data["razorpay_order_id"],
+            "transaction": latest_transaction,
+            "demo": False
         })
 
     except Exception as error:
 
-        print(
-            "Payment verification error:",
-            error
-        )
+        print("Payment verification error:", error)
 
         return jsonify({
-
             "success": False,
-
-            "message":
-                "Payment verification failed"
-
+            "message": "Payment verification failed"
         }), 400
 @app.route("/transaction", methods=["GET"])
 def get_transaction():
