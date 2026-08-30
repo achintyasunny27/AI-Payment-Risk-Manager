@@ -192,10 +192,15 @@ def create_order():
         "currency": "INR",
         "receipt": "risk_manager_checkout"
     }
-
-    order = client.order.create(
-        data=order_data
-    )
+    try:
+        order = client.order.create(data=order_data)
+    except Exception as e:
+        print("RAZORPAY ERROR:", repr(e), flush=True)
+        return jsonify({
+            "error": "Razorpay order creation failed",
+            "details": str(e)
+        }), 500
+    
 
     latest_order = order
 
