@@ -338,8 +338,11 @@ def get_all_transactions():
         return jsonify({
             "success": False,
             "message": "Could not fetch transactions"
-        }), 500    
-    print("=== PAYMENT SERVER LOADED ===")
+        }), 500
+
+print("=== PAYMENT SERVER LOADED ===", flush=True)
+print("ROUTES:", app.url_map, flush=True)
+
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({
@@ -347,10 +350,8 @@ def health():
         "message": "Payment backend is running"
     })
 
-if __name__ == "__main__":
-
-    app.run(
-        host="127.0.0.1",
-        port=5000,
-        debug=True
-    )
+app.run(
+    host="127.0.0.1",
+    port=5000,
+    debug=True
+)
