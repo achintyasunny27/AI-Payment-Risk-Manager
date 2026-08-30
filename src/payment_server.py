@@ -195,31 +195,53 @@ def create_order():
         "receipt": f"risk_manager_{uuid.uuid4().hex[:10]}"
     }
 
-    print("=== CREATE ORDER CALLED ===", flush=True)
+    print("=== DIRECT RAZORPAY API TEST ===", flush=True)
+    print("KEY ID:", KEY_ID, flush=True)
+    print("SECRET PRESENT:", bool(KEY_SECRET), flush=True)
+    print("SECRET LENGTH:", len(KEY_SECRET or ""), flush=True)
     print("ORDER DATA:", order_data, flush=True)
 
     try:
-        order = client.order.create(
-            data=order_data
+        response = requests.post(
+            "https://api.razorpay.com/v1/orders",
+            auth=(KEY_ID, KEY_SECRET),
+            json=order_data,
+            timeout=30
         )
 
-        latest_order = order
+        print("RAZORPAY HTTP STATUS:", response.status_code, flush=True)
+        print("RAZORPAY RESPONSE:", response.text, flush=True)
 
-        print("=== RAZORPAY ORDER CREATED ===", flush=True)
-        print("ORDER ID:", order.get("id"), flush=True)
+        if response.status_code == 200:
+            order = response.json()
 
-        return jsonify(order), 200
+            latest_order = order
 
-    except Exception as error:
-        print("=== RAZORPAY ERROR ===", flush=True)
-        print("ERROR TYPE:", type(error).__name__, flush=True)
-        print("ERROR:", repr(error), flush=True)
+            print(
+                "REAL ORDER CREATED:",
+                order.get("id"),
+                flush=True
+            )
+
+            return jsonify(order), 200
 
         return jsonify({
-            "error": "Razorpay order creation failed",
-            "details": str(error)
+            "error": "Razorpay rejected the request",
+            "status": response.status_code,
+            "details": response.text
         }), 500
 
+    except Exception as error:
+        print(
+            "DIRECT RAZORPAY REQUEST FAILED:",
+            repr(error),
+            flush=True
+        )
+
+        return jsonify({
+            "error": "Could not connect to Razorpay",
+            "details": str(error)
+        }), 500
 @app.route("/verify-payment", methods=["POST"])
 def verify_payment():
     global latest_payment
