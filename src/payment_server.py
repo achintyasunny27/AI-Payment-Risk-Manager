@@ -13,6 +13,9 @@ load_dotenv()
 
 KEY_ID = os.getenv("RAZORPAY_KEY_ID")
 KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
+print("RAZORPAY KEY ID:", KEY_ID[:12] if KEY_ID else "MISSING", flush=True)
+print("RAZORPAY SECRET PRESENT:", bool(KEY_SECRET), flush=True)
+print("RAZORPAY SECRET LENGTH:", len(KEY_SECRET) if KEY_SECRET else 0, flush=True)
 
 
 client = razorpay.Client(
