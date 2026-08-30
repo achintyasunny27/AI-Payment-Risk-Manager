@@ -176,7 +176,6 @@ def home():
     )
 
     return render_template_string(html)
-
 @app.route("/create-order", methods=["POST"])
 def create_order():
     global latest_transaction
@@ -190,54 +189,36 @@ def create_order():
 
     latest_transaction = data
 
-    # Try real Razorpay first
+    order_data = {
+        "amount": int(amount_rupees * 100),
+        "currency": "INR",
+        "receipt": f"risk_manager_{uuid.uuid4().hex[:10]}"
+    }
+
+    print("=== CREATE ORDER CALLED ===", flush=True)
+    print("ORDER DATA:", order_data, flush=True)
+
     try:
-        order_data = {
-            "amount": int(amount_rupees * 100),
-            "currency": "INR",
-            "receipt": f"risk_manager_{uuid.uuid4().hex[:10]}"
-        }
+        order = client.order.create(
+            data=order_data
+        )
 
-        print("=== CREATE ORDER CALLED ===", flush=True)
-        print("ORDER DATA:", order_data, flush=True)
+        latest_order = order
 
-        try:
-            order = client.order.create(
-                data=order_data
-            )
+        print("=== RAZORPAY ORDER CREATED ===", flush=True)
+        print("ORDER ID:", order.get("id"), flush=True)
 
-            print("=== RAZORPAY ORDER CREATED ===", flush=True)
-            print("ORDER:", order, flush=True)
-
-        except Exception as error:
-            print("=== RAZORPAY ERROR ===", flush=True)
-            print("ERROR TYPE:", type(error).__name__, flush=True)
-            print("ERROR:", repr(error), flush=True)
-            raise
-
-        print("REAL RAZORPAY ORDER CREATED:", order.get("id"))
-
-        return jsonify(order)
+        return jsonify(order), 200
 
     except Exception as error:
-        # DEMO MODE — allows the risk analysis system
-        # to work even when Razorpay is unavailable.
-        print("Razorpay unavailable. Using DEMO MODE:", error)
+        print("=== RAZORPAY ERROR ===", flush=True)
+        print("ERROR TYPE:", type(error).__name__, flush=True)
+        print("ERROR:", repr(error), flush=True)
 
-        demo_order = {
-            "id": f"demo_order_{uuid.uuid4().hex[:10]}",
-            "amount": int(amount_rupees * 100),
-            "currency": "INR",
-            "receipt": f"demo_risk_manager_{uuid.uuid4().hex[:10]}",
-            "status": "created",
-            "demo": True
-        }
-
-        latest_order = demo_order
-
-        print("DEMO ORDER CREATED:", demo_order["id"])
-
-        return jsonify(demo_order)
+        return jsonify({
+            "error": "Razorpay order creation failed",
+            "details": str(error)
+        }), 500
 
 @app.route("/verify-payment", methods=["POST"])
 def verify_payment():
