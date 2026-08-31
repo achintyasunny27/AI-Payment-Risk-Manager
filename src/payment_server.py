@@ -1,394 +1,844 @@
-import uuid
 import os
-import razorpay
+import uuid
 
-from flask import Flask, request, jsonify, render_template_string
-from dotenv import load_dotenv
+from flask import (
+    Flask,
+    request,
+    jsonify,
+    render_template_string
+)
+
 from src.database import (
     initialize_database,
     save_transaction,
     get_transactions
 )
 
-load_dotenv()
 
-KEY_ID = os.getenv("RAZORPAY_KEY_ID")
-KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
-print("RAZORPAY KEY ID:", KEY_ID[:12] if KEY_ID else "MISSING", flush=True)
-print("RAZORPAY SECRET PRESENT:", bool(KEY_SECRET), flush=True)
-print("RAZORPAY SECRET LENGTH:", len(KEY_SECRET) if KEY_SECRET else 0, flush=True)
+# =========================================================
+# APP
+# =========================================================
+
+app = Flask(__name__)
+
+initialize_database()
 
 
-client = razorpay.Client(
-    auth=(KEY_ID, KEY_SECRET)
-)
+# =========================================================
+# CURRENT PAYMENT STATE
+# =========================================================
 
 latest_transaction = {}
 latest_payment = {}
 latest_order = {}
-app = Flask(__name__)
-initialize_database()
 
 
-@app.route("/")
+# =========================================================
+# HOME
+# =========================================================
+
+@app.route("/", methods=["GET"])
 def home():
 
     if not latest_order:
+
         return """
-        <h1>AI Payment Risk Manager</h1>
-        <p>No payment order is ready.</p>
-        <p>Go back to the Streamlit dashboard and create an order first.</p>
+        <!DOCTYPE html>
+
+        <html>
+
+        <head>
+            <title>AI Payment Risk Manager</title>
+        </head>
+
+        <body style="
+            font-family: Arial;
+            background: #0e1117;
+            color: white;
+            padding: 50px;
+        ">
+
+            <h1>🛡️ AI Payment Risk Manager</h1>
+
+            <h2>🧪 Test Payment Simulator</h2>
+
+            <p>
+                Payment backend is running.
+            </p>
+
+            <p>
+                No real money is processed.
+            </p>
+
+            <p>
+                Create a test payment from the
+                Streamlit dashboard.
+            </p>
+
+        </body>
+
+        </html>
         """
 
-    html = """
-    <!DOCTYPE html>
 
-    <html>
-
-    <head>
-
-        <title>AI Payment Risk Manager</title>
-
-        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-
-    </head>
-
-    <body>
-
-        <h1>AI Payment Risk Manager</h1>
-
-        <h2>Razorpay Test Checkout</h2>
-
-        <p>Amount: ₹AMOUNT_PLACEHOLDER</p>
-
-        <button id="payButton">
-            Pay Now - Test Mode
-        </button>
-
-
-        <script>
-
-        document.getElementById("payButton").addEventListener(
-            "click",
-            startPayment
-        );
-
-
-        function startPayment() {
-
-            const options = {
-
-                key: "KEY_ID_PLACEHOLDER",
-
-                amount: AMOUNT_PAISE_PLACEHOLDER,
-
-                currency: "INR",
-
-                name: "AI Payment Risk Manager",
-
-                description: "AI Risk Manager Test Payment",
-
-                order_id: "ORDER_ID_PLACEHOLDER",
-
-
-                handler: async function(paymentResponse) {
-
-                    const verifyResponse = await fetch(
-                        "/verify-payment",
-                        {
-                            method: "POST",
-
-                            headers: {
-                                "Content-Type": "application/json"
-                            },
-
-                            body: JSON.stringify(
-                                paymentResponse
-                            )
-                        }
-                    );
-
-
-                    const result =
-                        await verifyResponse.json();
-
-
-                    if (result.success) {
-
-                        alert(
-                            "PAYMENT VERIFIED!\\n\\n" +
-                            "Payment ID: " +
-                            result.payment_id +
-                            "\\n\\n" +
-                            "You can now return to the dashboard."
-                        );
-
-                    } else {
-
-                        alert(
-                            "PAYMENT VERIFICATION FAILED!\\n\\n" +
-                            result.message
-                        );
-
-                    }
-
-                }
-
-            };
-
-
-            const razorpayCheckout =
-                new Razorpay(options);
-
-
-            razorpayCheckout.open();
-
-        }
-
-        </script>
-
-    </body>
-
-    </html>
-    """
-
-    amount_paise = latest_order["amount"]
-    amount_rupees = amount_paise / 100
-
-    html = html.replace(
-        "KEY_ID_PLACEHOLDER",
-        KEY_ID
+    amount_rupees = (
+        latest_order["amount"] / 100
     )
 
-    html = html.replace(
-        "ORDER_ID_PLACEHOLDER",
-        latest_order["id"]
+
+    return render_template_string(
+        """
+        <!DOCTYPE html>
+
+        <html>
+
+        <head>
+
+            <title>
+                AI Payment Risk Manager
+            </title>
+
+        </head>
+
+        <body style="
+            font-family: Arial;
+            background: #0e1117;
+            color: white;
+            padding: 50px;
+        ">
+
+        <div style="
+            max-width: 600px;
+            margin: auto;
+            background: #1b1f27;
+            padding: 35px;
+            border-radius: 15px;
+        ">
+
+            <h1>🧪 Test Payment</h1>
+
+            <h2>
+                AI Payment Risk Manager
+            </h2>
+
+            <hr>
+
+            <h2>
+                Amount: ₹{{ amount }}
+            </h2>
+
+            <p>
+                <b>Order ID:</b>
+                {{ order_id }}
+            </p>
+
+            <p>
+                <b>Payment ID:</b>
+                {{ payment_id }}
+            </p>
+
+            <p style="
+                color: #00ff88;
+                font-weight: bold;
+            ">
+                ✅ TEST PAYMENT VERIFIED
+            </p>
+
+            <p>
+                This is a simulated payment.
+                No real money has been charged.
+            </p>
+
+            <p>
+                Return to the Streamlit dashboard
+                and click
+                <b>Check Payment & Analyze</b>.
+            </p>
+
+        </div>
+
+        </body>
+
+        </html>
+        """,
+
+        amount=f"{amount_rupees:.2f}",
+
+        order_id=latest_order["id"],
+
+        payment_id=latest_payment.get(
+            "payment_id",
+            "N/A"
+        )
     )
 
-    html = html.replace(
-        "AMOUNT_PAISE_PLACEHOLDER",
-        str(amount_paise)
-    )
 
-    html = html.replace(
-        "AMOUNT_PLACEHOLDER",
-        f"{amount_rupees:.2f}"
-    )
+# =========================================================
+# CREATE TEST ORDER
+# =========================================================
 
-    return render_template_string(html)
-@app.route("/create-order", methods=["POST"])
+@app.route(
+    "/create-order",
+    methods=["POST"]
+)
 def create_order():
+
     global latest_transaction
     global latest_order
+    global latest_payment
 
-    data = request.get_json() or {}
 
-    amount_rupees = float(
-        data.get("transaction_amount", 100)
-    )
+    data = request.get_json(
+        silent=True
+    ) or {}
+
+
+    # -----------------------------------------------------
+    # AMOUNT
+    # -----------------------------------------------------
+
+    try:
+
+        amount_rupees = float(
+            data.get(
+                "transaction_amount",
+                100
+            )
+        )
+
+    except (
+        ValueError,
+        TypeError
+    ):
+
+        return jsonify({
+
+            "success": False,
+
+            "message":
+                "Invalid transaction amount"
+
+        }), 400
+
+
+    if amount_rupees <= 0:
+
+        return jsonify({
+
+            "success": False,
+
+            "message":
+                "Transaction amount must be greater than zero"
+
+        }), 400
+
+
+    # -----------------------------------------------------
+    # SAVE TRANSACTION IN MEMORY
+    # -----------------------------------------------------
 
     latest_transaction = data
 
-    order_data = {
-        "amount": int(amount_rupees * 100),
-        "currency": "INR",
-        "receipt": f"risk_manager_{uuid.uuid4().hex[:10]}"
+
+    # -----------------------------------------------------
+    # CREATE TEST IDs
+    # -----------------------------------------------------
+
+    order_id = (
+        "test_order_"
+        + uuid.uuid4().hex[:10]
+    )
+
+
+    payment_id = (
+        "test_payment_"
+        + uuid.uuid4().hex[:10]
+    )
+
+
+    # -----------------------------------------------------
+    # CREATE TEST ORDER
+    # -----------------------------------------------------
+
+    latest_order = {
+
+        "id":
+            order_id,
+
+        "amount":
+            int(
+                round(
+                    amount_rupees * 100
+                )
+            ),
+
+        "currency":
+            "INR",
+
+        "receipt":
+            "risk_manager_"
+            + uuid.uuid4().hex[:10],
+
+        "status":
+            "created",
+
+        "demo":
+            True
     }
 
-    print("=== DIRECT RAZORPAY API TEST ===", flush=True)
-    print("KEY ID:", KEY_ID, flush=True)
-    print("SECRET PRESENT:", bool(KEY_SECRET), flush=True)
-    print("SECRET LENGTH:", len(KEY_SECRET or ""), flush=True)
-    print("ORDER DATA:", order_data, flush=True)
 
-    try:
-        response = requests.post(
-            "https://api.razorpay.com/v1/orders",
-            auth=(KEY_ID, KEY_SECRET),
-            json=order_data,
-            timeout=30
-        )
+    # -----------------------------------------------------
+    # AUTOMATIC TEST PAYMENT
+    # -----------------------------------------------------
 
-        print("RAZORPAY HTTP STATUS:", response.status_code, flush=True)
-        print("RAZORPAY RESPONSE:", response.text, flush=True)
+    latest_payment = {
 
-        if response.status_code == 200:
-            order = response.json()
+        "payment_id":
+            payment_id,
 
-            latest_order = order
+        "order_id":
+            order_id,
 
-            print(
-                "REAL ORDER CREATED:",
-                order.get("id"),
-                flush=True
-            )
+        "transaction":
+            latest_transaction,
 
-            return jsonify(order), 200
+        "status":
+            "verified",
 
-        return jsonify({
-            "error": "Razorpay rejected the request",
-            "status": response.status_code,
-            "details": response.text
-        }), 500
+        "demo":
+            True,
 
-    except Exception as error:
-        print(
-            "DIRECT RAZORPAY REQUEST FAILED:",
-            repr(error),
-            flush=True
-        )
+        "payment_mode":
+            "TEST SIMULATOR"
+    }
 
-        return jsonify({
-            "error": "Could not connect to Razorpay",
-            "details": str(error)
-        }), 500
-@app.route("/verify-payment", methods=["POST"])
+
+    # -----------------------------------------------------
+    # LOGS
+    # -----------------------------------------------------
+
+    print(
+        "\n========================================",
+        flush=True
+    )
+
+    print(
+        "       TEST PAYMENT CREATED",
+        flush=True
+    )
+
+    print(
+        "========================================",
+        flush=True
+    )
+
+    print(
+        "ORDER ID:",
+        order_id,
+        flush=True
+    )
+
+    print(
+        "PAYMENT ID:",
+        payment_id,
+        flush=True
+    )
+
+    print(
+        "AMOUNT:",
+        amount_rupees,
+        "INR",
+        flush=True
+    )
+
+    print(
+        "STATUS: VERIFIED",
+        flush=True
+    )
+
+    print(
+        "========================================\n",
+        flush=True
+    )
+
+
+    # -----------------------------------------------------
+    # RESPONSE
+    # -----------------------------------------------------
+
+    return jsonify({
+
+        "success":
+            True,
+
+        "id":
+            order_id,
+
+        "amount":
+            latest_order["amount"],
+
+        "currency":
+            "INR",
+
+        "receipt":
+            latest_order["receipt"],
+
+        "status":
+            "created",
+
+        "demo":
+            True,
+
+        "payment_id":
+            payment_id,
+
+        "payment_status":
+            "verified",
+
+        "payment_mode":
+            "TEST SIMULATOR"
+
+    }), 200
+
+
+# =========================================================
+# VERIFY PAYMENT
+# =========================================================
+
+@app.route(
+    "/verify-payment",
+    methods=["POST"]
+)
 def verify_payment():
+
     global latest_payment
 
-    data = request.get_json() or {}
 
-    # DEMO PAYMENT
-    # If the order was created in demo mode,
-    # skip Razorpay signature verification.
-    if latest_order.get("demo") is True:
+    data = request.get_json(
+        silent=True
+    ) or {}
 
-        latest_payment = {
-            "payment_id": f"demo_payment_{uuid.uuid4().hex[:10]}",
-            "order_id": latest_order["id"],
-            "transaction": latest_transaction,
-            "status": "verified",
-            "demo": True
-        }
 
-        print("DEMO PAYMENT VERIFIED")
+    if not latest_order:
 
         return jsonify({
-            "success": True,
-            "message": "Demo payment verified",
-            "payment_id": latest_payment["payment_id"],
-            "order_id": latest_payment["order_id"],
-            "transaction": latest_transaction,
-            "demo": True
-        })
 
-    # REAL RAZORPAY PAYMENT
-    try:
+            "success":
+                False,
 
-        client.utility.verify_payment_signature({
-            "razorpay_order_id": data["razorpay_order_id"],
-            "razorpay_payment_id": data["razorpay_payment_id"],
-            "razorpay_signature": data["razorpay_signature"]
-        })
+            "message":
+                "No test payment has been created yet."
 
-        latest_payment = {
-            "payment_id": data["razorpay_payment_id"],
-            "order_id": data["razorpay_order_id"],
-            "transaction": latest_transaction,
-            "status": "verified",
-            "demo": False
-        }
-
-        return jsonify({
-            "success": True,
-            "message": "Payment signature verified",
-            "payment_id": data["razorpay_payment_id"],
-            "order_id": data["razorpay_order_id"],
-            "transaction": latest_transaction,
-            "demo": False
-        })
-
-    except Exception as error:
-
-        print("Payment verification error:", error)
-
-        return jsonify({
-            "success": False,
-            "message": "Payment verification failed"
         }), 400
-@app.route("/transaction", methods=["GET"])
+
+
+    payment_id = data.get(
+        "payment_id"
+    )
+
+
+    if not payment_id:
+
+        payment_id = latest_payment.get(
+            "payment_id"
+        )
+
+
+    if not payment_id:
+
+        payment_id = (
+            "test_payment_"
+            + uuid.uuid4().hex[:10]
+        )
+
+
+    latest_payment = {
+
+        "payment_id":
+            payment_id,
+
+        "order_id":
+            latest_order["id"],
+
+        "transaction":
+            latest_transaction,
+
+        "status":
+            "verified",
+
+        "demo":
+            True,
+
+        "payment_mode":
+            "TEST SIMULATOR"
+    }
+
+
+    print(
+        "=== TEST PAYMENT VERIFIED ===",
+        payment_id,
+        flush=True
+    )
+
+
+    return jsonify({
+
+        "success":
+            True,
+
+        "message":
+            "Test payment verified",
+
+        "payment_id":
+            payment_id,
+
+        "order_id":
+            latest_order["id"],
+
+        "transaction":
+            latest_transaction,
+
+        "demo":
+            True,
+
+        "payment_mode":
+            "TEST SIMULATOR"
+
+    }), 200
+
+
+# =========================================================
+# CURRENT TRANSACTION
+# =========================================================
+
+@app.route(
+    "/transaction",
+    methods=["GET"]
+)
 def get_transaction():
 
     return jsonify({
-        "transaction": latest_transaction,
-        "payment": latest_payment
-    })
-@app.route("/save-analysis", methods=["POST"])
+
+        "success":
+            True,
+
+        "transaction":
+            latest_transaction,
+
+        "payment":
+            latest_payment,
+
+        "order":
+            latest_order
+
+    }), 200
+
+
+# =========================================================
+# PAYMENT STATUS
+# =========================================================
+
+@app.route(
+    "/payment-status",
+    methods=["GET"]
+)
+def payment_status():
+
+    return jsonify({
+
+        "success":
+            True,
+
+        "payment":
+            latest_payment,
+
+        "transaction":
+            latest_transaction,
+
+        "order":
+            latest_order
+
+    }), 200
+
+
+# =========================================================
+# SAVE AI ANALYSIS
+# =========================================================
+
+@app.route(
+    "/save-analysis",
+    methods=["POST"]
+)
 def save_analysis():
 
-    data = request.get_json()
+    data = request.get_json(
+        silent=True
+    ) or {}
+
+
+    required_fields = [
+
+        "payment_id",
+
+        "order_id",
+
+        "transaction",
+
+        "risk_score",
+
+        "risk_level"
+    ]
+
+
+    missing_fields = [
+
+        field
+
+        for field in required_fields
+
+        if field not in data
+    ]
+
+
+    if missing_fields:
+
+        return jsonify({
+
+            "success":
+                False,
+
+            "message":
+                "Missing required fields",
+
+            "missing":
+                missing_fields
+
+        }), 400
+
 
     try:
 
         save_transaction(
-            payment_id=data["payment_id"],
-            order_id=data["order_id"],
-            transaction=data["transaction"],
-            risk_score=data["risk_score"],
-            risk_level=data["risk_level"]
+
+            payment_id =
+                data["payment_id"],
+
+            order_id =
+                data["order_id"],
+
+            transaction =
+                data["transaction"],
+
+            risk_score =
+                float(
+                    data["risk_score"]
+                ),
+
+            risk_level =
+                str(
+                    data["risk_level"]
+                )
         )
 
+
+        print(
+            "=== TRANSACTION SAVED ===",
+            data["payment_id"],
+            flush=True
+        )
+
+
         return jsonify({
-            "success": True,
-            "message": "Transaction saved successfully"
-        })
+
+            "success":
+                True,
+
+            "message":
+                "Transaction saved successfully"
+
+        }), 200
+
 
     except Exception as error:
 
         print(
-            "Database save error:",
-            error
+            "DATABASE SAVE ERROR:",
+            repr(error),
+            flush=True
         )
 
+
         return jsonify({
-            "success": False,
-            "message": "Could not save transaction"
+
+            "success":
+                False,
+
+            "message":
+                "Could not save transaction",
+
+            "details":
+                str(error)
+
         }), 500
 
-@app.route("/payment-status", methods=["GET"])
-def payment_status():
 
-    return jsonify({
-        "payment": latest_payment,
-        "transaction": latest_transaction
-    })
-@app.route("/transactions", methods=["GET"])
+# =========================================================
+# TRANSACTION HISTORY
+# =========================================================
+
+@app.route(
+    "/transactions",
+    methods=["GET"]
+)
 def get_all_transactions():
 
     try:
 
         transactions = get_transactions()
 
+
+        if transactions is None:
+
+            transactions = []
+
+
         return jsonify({
-            "success": True,
-            "transactions": transactions
-        })
+
+            "success":
+                True,
+
+            "count":
+                len(transactions),
+
+            "transactions":
+                transactions
+
+        }), 200
+
 
     except Exception as error:
 
         print(
-            "Database fetch error:",
-            error
+            "DATABASE FETCH ERROR:",
+            repr(error),
+            flush=True
         )
 
+
         return jsonify({
-            "success": False,
-            "message": "Could not fetch transactions"
+
+            "success":
+                False,
+
+            "message":
+                "Could not fetch transactions",
+
+            "details":
+                str(error),
+
+            "transactions":
+                []
+
         }), 500
 
-print("=== PAYMENT SERVER LOADED ===", flush=True)
-print("ROUTES:", app.url_map, flush=True)
 
-@app.route("/health", methods=["GET"])
+# =========================================================
+# HEALTH
+# =========================================================
+
+@app.route(
+    "/health",
+    methods=["GET"]
+)
 def health():
+
     return jsonify({
-        "status": "ok",
-        "message": "Payment backend is running"
-    })
+
+        "status":
+            "ok",
+
+        "message":
+            "Payment backend is running",
+
+        "mode":
+            "TEST_SIMULATOR"
+
+    }), 200
+
+
+# =========================================================
+# HEALTHZ
+# =========================================================
+
+@app.route(
+    "/healthz",
+    methods=["GET"]
+)
+def healthz():
+
+    return jsonify({
+
+        "status":
+            "ok",
+
+        "mode":
+            "TEST_SIMULATOR"
+
+    }), 200
+
+
+# =========================================================
+# SERVER START
+# =========================================================
+
+print(
+    "========================================",
+    flush=True
+)
+
+print(
+    "       AI PAYMENT RISK MANAGER",
+    flush=True
+)
+
+print(
+    "       PAYMENT BACKEND LOADED",
+    flush=True
+)
+
+print(
+    "       MODE: TEST SIMULATOR",
+    flush=True
+)
+
+print(
+    "========================================",
+    flush=True
+)
+
+print(
+    "ROUTES:",
+    app.url_map,
+    flush=True
+)
+
 
 if __name__ == "__main__":
+
+    port = int(
+        os.environ.get(
+            "PORT",
+            5000
+        )
+    )
+
+
     app.run(
+
         host="0.0.0.0",
-        port=int(os.environ.get("PORT", 5000)),
+
+        port=port,
+
         debug=False
+
     )
