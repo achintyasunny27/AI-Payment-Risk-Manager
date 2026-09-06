@@ -51,6 +51,17 @@ BACKEND_URL = BACKEND_URL.rstrip("/")
 
 
 # =========================================================
+# DEBUG: ALWAYS SHOW ACTIVE BACKEND URL
+# (Temporary - remove once everything works.
+#  This runs on every rerun, regardless of success/failure,
+#  so we can confirm the deployed frontend is reading the
+#  correct BACKEND_URL from Render's environment variables.)
+# =========================================================
+
+st.sidebar.info(f"🔧 DEBUG — Active BACKEND_URL:\n\n`{BACKEND_URL}`")
+
+
+# =========================================================
 # CUSTOM CSS
 # =========================================================
 
